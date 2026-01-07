@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<body style="font-size:40px">
+Tap once to start
+<script>
+let ws;
+document.body.onclick = () => {
+  ws = new WebSocket("ws://192.168.0.24:8765");
+  window.addEventListener("deviceorientation", e => {
+    if (ws.readyState === 1) {
+      ws.send(JSON.stringify({ tilt: e.gamma }));
+    }
+  });
+  document.body.innerText = "Streaming motion…";
+};
+</script>
+</body>
+</html>
