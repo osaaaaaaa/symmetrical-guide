@@ -5,64 +5,89 @@
 <title>iPhone Tilt → Mac Keyboard</title>
 <style>
   body {
-    font-size: 32px;
+    font-family: sans-serif;
     text-align: center;
     margin-top: 50px;
-    font-family: sans-serif;
+    font-size: 32px;
   }
   button {
     font-size: 28px;
     padding: 20px 40px;
   }
+  #status {
+    margin-top: 20px;
+  }
 </style>
 </head>
 <body>
-<h1>iPhone Tilt → Mac</h1>
+<h1>iPhone Tilt → Mac V6</h1>
 <p id="status">Tap below to start streaming</p>
 <button id="startBtn">Start Streaming</button>
 
 <script>
 const MAC_IP = "192.168.0.24"; // Replace with your Mac's IP
 const WS_PORT = 8765;
-const DEADZONE = 8;      // Tilt degrees ignored around center
-const SCALE = 1;         // Optional multiplier for tilt sensitivity
+const DEADZONE = 8; // Degrees around center to ignore
+const SCALE = 1;    // Optional multiplier for tilt sensitivity
 
 let ws = null;
 
 document.getElementById("startBtn").onclick = async () => {
-    // Request motion permission on iOS 13+
+    const status = document.getElementById("status");
+    status.innerText = "Requesting motion permission…";
+
+    // iOS 13+ requires user gesture and explicit permission
     if (typeof DeviceMotionEvent !== 'undefined' &&
         typeof DeviceMotionEvent.requestPermission === 'function') {
-        const response = await DeviceMotionEvent.requestPermission();
-        if (response !== 'granted') {
-            alert("Motion permission denied! Cannot stream tilt.");
+        try {
+            const response = await DeviceMotionEvent.requestPermission();
+            if (response !== 'granted') {
+                alert("Motion permission denied!");
+                status.innerText = "Permission denied.";
+                return;
+            }
+        } catch (err) {
+            alert("Motion permission request failed!");
+            status.innerText = "Permission request error.";
             return;
         }
     }
 
-    // Open WebSocket
-    ws = new WebSocket(`ws://${MAC_IP}:${WS_PORT}`);
-    ws.onopen = () => {
-        document.getElementById("status").innerText = "Streaming motion…";
-        console.log("WebSocket connected");
-    };
-    ws.onerror = (err) => console.error("WebSocket error", err);
-    ws.onclose = () => console.log("WebSocket closed");
+    status.innerText = "Opening WebSocket…";
 
-    // Send tilt data continuously
-    window.addEventListener("deviceorientation", (event) => {
-        if (ws && ws.readyState === 1) {
-            let tilt = event.gamma * SCALE; // gamma = left/right tilt in degrees
+    // Small delay ensures iOS Safari fully activates motion sensors
+    setTimeout(() => {
+        ws = new WebSocket(`ws://${MAC_IP}:${WS_PORT}`);
 
-            // Apply deadzone
-            if (tilt > -DEADZONE && tilt < DEADZONE) tilt = 0;
+        ws.onopen = () => {
+            status.innerText = "Streaming motion…";
+            document.getElementById("startBtn").disabled = true;
+            console.log("WebSocket connected");
+        };
 
-            ws.send(JSON.stringify({ tilt: tilt }));
-        }
-    });
+        ws.onerror = (err) => {
+            console.error("WebSocket error:", err);
+            status.innerText = "WebSocket error!";
+        };
 
-    // Disable button after starting
-    document.getElementById("startBtn").disabled = true;
+        ws.onclose = () => {
+            console.log("WebSocket closed");
+            status.innerText = "WebSocket closed.";
+            document.getElementById("startBtn").disabled = false;
+        };
+
+        // Listen to device tilt
+        window.addEventListener("deviceorientation", (event) => {
+            if (ws && ws.readyState === 1) {
+                let tilt = event.gamma * SCALE; // left/right tilt
+
+                // Apply deadzone
+                if (tilt > -DEADZONE && tilt < DEADZONE) tilt = 0;
+
+                ws.send(JSON.stringify({ tilt: tilt }));
+            }
+        });
+    }, 50); // 50ms delay
 };
 </script>
 </body>
