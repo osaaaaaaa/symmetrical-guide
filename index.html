@@ -16,11 +16,13 @@
   }
   #status {
     margin-top: 20px;
+    color: #333;
+    word-break: break-word;
   }
 </style>
 </head>
 <body>
-<h1>iPhone Tilt → Mac V6</h1>
+<h1>iPhone Tilt → Mac</h1>
 <p id="status">Tap below to start streaming</p>
 <button id="startBtn">Start Streaming</button>
 
@@ -48,7 +50,7 @@ document.getElementById("startBtn").onclick = async () => {
             }
         } catch (err) {
             alert("Motion permission request failed!");
-            status.innerText = "Permission request error.";
+            status.innerText = "Permission request error: " + err;
             return;
         }
     }
@@ -62,17 +64,16 @@ document.getElementById("startBtn").onclick = async () => {
         ws.onopen = () => {
             status.innerText = "Streaming motion…";
             document.getElementById("startBtn").disabled = true;
-            console.log("WebSocket connected");
         };
 
         ws.onerror = (err) => {
             console.error("WebSocket error:", err);
-            status.innerText = "WebSocket error!";
+            status.innerText = "WebSocket error: " + err.message || err;
+            document.getElementById("startBtn").disabled = false;
         };
 
-        ws.onclose = () => {
-            console.log("WebSocket closed");
-            status.innerText = "WebSocket closed.";
+        ws.onclose = (event) => {
+            status.innerText = `WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`;
             document.getElementById("startBtn").disabled = false;
         };
 
