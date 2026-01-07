@@ -8,87 +8,99 @@
     font-family: sans-serif;
     text-align: center;
     margin-top: 50px;
-    font-size: 32px;
+    font-size: 28px;
   }
   button {
-    font-size: 28px;
-    padding: 20px 40px;
+    font-size: 26px;
+    padding: 15px 30px;
+  }
+  #status, #tilt {
+    margin-top: 20px;
+    word-break: break-word;
+    font-weight: bold;
+  }
+  #tilt {
+    color: #0066cc;
   }
   #status {
-    margin-top: 20px;
-    color: #333;
-    word-break: break-word;
+    color: #cc0000;
   }
 </style>
 </head>
 <body>
 <h1>iPhone Tilt → Mac</h1>
 <p id="status">Tap below to start streaming</p>
+<p id="tilt">Tilt: 0°</p>
 <button id="startBtn">Start Streaming</button>
 
 <script>
 const MAC_IP = "192.168.0.24"; // Replace with your Mac's IP
 const WS_PORT = 8765;
-const DEADZONE = 8; // Degrees around center to ignore
-const SCALE = 1;    // Optional multiplier for tilt sensitivity
+const DEADZONE = 8; // Degrees around center ignored
+const SCALE = 1;    // Multiplier for tilt sensitivity
 
 let ws = null;
+const statusEl = document.getElementById("status");
+const tiltEl = document.getElementById("tilt");
+const btn = document.getElementById("startBtn");
 
-document.getElementById("startBtn").onclick = async () => {
-    const status = document.getElementById("status");
-    status.innerText = "Requesting motion permission…";
+btn.onclick = async () => {
+    statusEl.innerText = "Requesting motion permission…";
 
-    // iOS 13+ requires user gesture and explicit permission
+    // iOS 13+ requires explicit permission for DeviceMotion
     if (typeof DeviceMotionEvent !== 'undefined' &&
         typeof DeviceMotionEvent.requestPermission === 'function') {
         try {
             const response = await DeviceMotionEvent.requestPermission();
             if (response !== 'granted') {
                 alert("Motion permission denied!");
-                status.innerText = "Permission denied.";
+                statusEl.innerText = "Permission denied.";
                 return;
             }
         } catch (err) {
             alert("Motion permission request failed!");
-            status.innerText = "Permission request error: " + err;
+            statusEl.innerText = "Permission request error: " + err;
             return;
         }
     }
 
-    status.innerText = "Opening WebSocket…";
+    statusEl.innerText = "Opening WebSocket…";
 
-    // Small delay ensures iOS Safari fully activates motion sensors
+    // Small delay to let iOS activate sensors
     setTimeout(() => {
         ws = new WebSocket(`ws://${MAC_IP}:${WS_PORT}`);
 
         ws.onopen = () => {
-            status.innerText = "Streaming motion…";
-            document.getElementById("startBtn").disabled = true;
+            statusEl.innerText = "Streaming motion…";
+            btn.disabled = true;
         };
 
-        ws.onerror = (err) => {
-            console.error("WebSocket error:", err);
-            status.innerText = "WebSocket error: " + err.message || err;
-            document.getElementById("startBtn").disabled = false;
+        ws.onerror = () => {
+            // iOS Safari gives almost no info on onerror
+            statusEl.innerText = "WebSocket error occurred. Check Mac server & network.";
+            btn.disabled = false;
         };
 
         ws.onclose = (event) => {
-            status.innerText = `WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`;
-            document.getElementById("startBtn").disabled = false;
+            statusEl.innerText = `WebSocket closed. Code: ${event.code}, Reason: ${event.reason || 'none'}`;
+            btn.disabled = false;
         };
 
-        // Listen to device tilt
         window.addEventListener("deviceorientation", (event) => {
-            if (ws && ws.readyState === 1) {
-                let tilt = event.gamma * SCALE; // left/right tilt
+            if (!ws || ws.readyState !== 1) return;
 
-                // Apply deadzone
-                if (tilt > -DEADZONE && tilt < DEADZONE) tilt = 0;
+            let tilt = event.gamma * SCALE; // left/right tilt in degrees
 
-                ws.send(JSON.stringify({ tilt: tilt }));
-            }
+            // Apply deadzone
+            if (tilt > -DEADZONE && tilt < DEADZONE) tilt = 0;
+
+            tiltEl.innerText = `Tilt: ${tilt.toFixed(1)}°`;
+
+            // Send tilt data
+            ws.send(JSON.stringify({ tilt: tilt }));
         });
-    }, 50); // 50ms delay
+
+    }, 50); // 50ms delay to ensure sensors active
 };
 </script>
 </body>
