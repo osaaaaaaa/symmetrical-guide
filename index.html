@@ -1,17 +1,29 @@
 <!DOCTYPE html>
 <html>
-<body style="font-size:40px">
-Tap once to start
+<body style="font-size:40px; text-align:center;">
+Tap here to start
 <script>
 let ws;
-document.body.onclick = () => {
-  ws = new WebSocket("ws://192.168.0.24:8765");
-  window.addEventListener("deviceorientation", e => {
-    if (ws.readyState === 1) {
-      ws.send(JSON.stringify({ tilt: e.gamma }));
+
+document.body.onclick = async () => {
+    // Request motion permission (iOS 13+)
+    if (typeof DeviceMotionEvent !== 'undefined' &&
+        typeof DeviceMotionEvent.requestPermission === 'function') {
+        const response = await DeviceMotionEvent.requestPermission();
+        if (response !== 'granted') {
+            alert("Motion permission denied!");
+            return;
+        }
     }
-  });
-  document.body.innerText = "Streaming motion…";
+
+    ws = new WebSocket("ws://192.168.0.24:8765"); // your Mac IP
+    ws.onopen = () => document.body.innerText = "Streaming motion…";
+
+    window.addEventListener("deviceorientation", e => {
+        if (ws.readyState === 1) {
+            ws.send(JSON.stringify({ tilt: e.gamma })); // left/right tilt
+        }
+    });
 };
 </script>
 </body>
